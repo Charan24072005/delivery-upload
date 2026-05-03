@@ -112,6 +112,18 @@ const normalizePath = (value) => {
   return path.startsWith('/') ? path : `/${path}`
 }
 
+const buildApiUrl = (baseUrl, path) => {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl)
+  const normalizedPath = normalizePath(path)
+  const combinedUrl = `${normalizedBaseUrl}${normalizedPath}`
+
+  if (/^https?:\/\//i.test(combinedUrl)) {
+    return new URL(combinedUrl)
+  }
+
+  return new URL(combinedUrl, window.location.origin)
+}
+
 const buildHeaders = (settings) => ({
   'X-Company-ID': normalizeIdValue(settings.companyId),
   Authorization: `Bearer ${normalizeTokenValue(settings.token)}`,
@@ -360,9 +372,7 @@ function App() {
       setError('')
 
       try {
-        const url = new URL(
-          `${normalizeBaseUrl(settings.apiBaseUrl)}${normalizePath(settings.customerPath)}`,
-        )
+        const url = buildApiUrl(settings.apiBaseUrl, settings.customerPath)
         if (normalizeIdValue(settings.dcId)) {
           url.searchParams.set('dcId', normalizeIdValue(settings.dcId))
         }
@@ -414,9 +424,7 @@ function App() {
       setIsLoadingVisits(true)
       setError('')
       try {
-        const url = new URL(
-          `${normalizeBaseUrl(settings.apiBaseUrl)}${normalizePath(settings.visitSearchPath)}`,
-        )
+        const url = buildApiUrl(settings.apiBaseUrl, settings.visitSearchPath)
         url.searchParams.set('startDate', startDate)
         url.searchParams.set('endDate', endDate)
         if (normalizeIdValue(settings.dcId)) {
