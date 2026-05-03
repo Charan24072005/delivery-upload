@@ -14,9 +14,9 @@ const HOP_BY_HOP_HEADERS = new Set([
 ])
 
 export default async function handler(req, res) {
-  const pathParts = Array.isArray(req.query.path) ? req.query.path : [req.query.path].filter(Boolean)
-  const targetPath = pathParts.join('/')
-  const targetUrl = new URL(`${TARGET_API_BASE}/${targetPath}`)
+  const rawPath = Array.isArray(req.query.path) ? req.query.path.join('/') : req.query.path || ''
+  const normalizedPath = String(rawPath).replace(/^\/+/, '')
+  const targetUrl = new URL(`${TARGET_API_BASE}/${normalizedPath}`)
 
   Object.entries(req.query).forEach(([key, value]) => {
     if (key === 'path') {
