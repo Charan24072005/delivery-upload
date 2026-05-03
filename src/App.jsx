@@ -12,14 +12,6 @@ const getNextMonthValue = () => {
 
 const createDayKey = (monthValue, day) => `${monthValue}-${String(day).padStart(2, '0')}`
 
-const buildDefaultChallanNumber = (customer, dayKey) => {
-  if (!customer || !dayKey) {
-    return ''
-  }
-
-  return `DC-${customer.id}-${dayKey.replaceAll('-', '')}`
-}
-
 const buildDays = (monthValue) => {
   if (!monthValue) {
     return []
@@ -51,7 +43,7 @@ const readStoredState = () => {
     tripDetailsPathTemplate: '/trips/{tripId}/details',
     ocrUploadPathTemplate: '/trips/visits/{visitId}/delivery-challans/upload',
     uploadPathTemplate: '/trips/visits/{visitId}/delivery-challans/upload-with-number',
-    companyId: '',
+    companyId: '100000',
     dcId: '',
     token: '',
     monthValue: getNextMonthValue(),
@@ -94,6 +86,10 @@ const readStoredState = () => {
       parsed.apiBaseUrl = fallback.apiBaseUrl
     }
 
+    if (!normalizeIdValue(parsed.companyId)) {
+      parsed.companyId = fallback.companyId
+    }
+
     return parsed
   } catch {
     return fallback
@@ -125,7 +121,7 @@ const buildApiUrl = (baseUrl, path) => {
 }
 
 const buildHeaders = (settings) => ({
-  'X-Company-ID': normalizeIdValue(settings.companyId),
+  'X-Company-ID': '100000',
   Authorization: `Bearer ${normalizeTokenValue(settings.token)}`,
 })
 
@@ -324,8 +320,6 @@ function App() {
   const selectedVisit = selectedDayVisits[0] ?? null
   const selectedDeliveryRequestId = selectedVisit?.deliveryRequestId ?? ''
   const selectedDeliveryRequestNumber = selectedVisit?.deliveryRequestNumber ?? ''
-  const effectiveChallanNumber =
-    challanNumber || buildDefaultChallanNumber(selectedCustomer, selectedDayKeySafe)
   const clearUploadDraft = () => {
     setSelectedFile(null)
     setPreviewUrl('')
@@ -527,8 +521,8 @@ function App() {
       return
     }
 
-    if (!normalizeIdValue(settings.companyId) || !normalizeTokenValue(settings.token)) {
-      setError('Company ID and token are required.')
+    if (!normalizeTokenValue(settings.token)) {
+      setError('Bearer token is required.')
       setMessage('')
       return
     }
@@ -545,7 +539,7 @@ function App() {
       return
     }
 
-    if (!effectiveChallanNumber.trim()) {
+    if (!challanNumber.trim()) {
       setError('Challan number is required.')
       setMessage('')
       return
@@ -554,7 +548,7 @@ function App() {
     const formData = new FormData()
     formData.append('file', selectedFile)
     formData.append('dcId', normalizeIdValue(settings.dcId))
-    formData.append('challanNumber', effectiveChallanNumber.trim())
+    formData.append('challanNumber', challanNumber.trim())
 
     const requestUrl = buildUploadUrl(settings, selectedVisit.visitId)
 
@@ -629,8 +623,8 @@ function App() {
       return
     }
 
-    if (!normalizeIdValue(settings.companyId) || !normalizeTokenValue(settings.token)) {
-      setError('Company ID and token are required.')
+    if (!normalizeTokenValue(settings.token)) {
+      setError('Bearer token is required.')
       setMessage('')
       return
     }
@@ -671,8 +665,7 @@ function App() {
       }
 
       setLastOcrResponse(data)
-      const nextChallanNumber =
-        data?.challanNumber ?? data?.ocrData?.challanNumber ?? buildDefaultChallanNumber(selectedCustomer, selectedDayKeySafe)
+      const nextChallanNumber = data?.challanNumber ?? data?.ocrData?.challanNumber ?? ''
       setChallanNumber(String(nextChallanNumber || ''))
       setMessage('OCR autofill complete. Challan number auto-filled, change if needed and confirm.')
     } catch (autofillError) {
@@ -705,32 +698,7 @@ function App() {
             </div>
           </div>
 
-          <label className="field">
-            <span>API base URL</span>
-            <input
-              type="url"
-              value={settings.apiBaseUrl}
-              onChange={(event) => handleSettingsChange('apiBaseUrl', event.target.value)}
-              placeholder="/api/proxy"
-            />
-          </label>
-
           <div className="inline-fields inline-fields--triple-compact">
-            <label className="field">
-              <span>X-Company-ID</span>
-              <input
-                type="text"
-                value={settings.companyId}
-                onChange={(event) => handleSettingsChange('companyId', event.target.value)}
-                placeholder="100000"
-                inputMode="numeric"
-                autoCapitalize="off"
-                autoCorrect="off"
-                autoComplete="off"
-                spellCheck="false"
-              />
-            </label>
-
             <label className="field">
               <span>DC ID</span>
               <input
@@ -928,9 +896,9 @@ function App() {
                 <span>Challan number</span>
                 <input
                   type="text"
-                  value={effectiveChallanNumber}
+                  value={challanNumber}
                   onChange={(event) => setChallanNumber(event.target.value)}
-                  placeholder="DC-100000-20260503"
+                  placeholder="Enter challan number"
                 />
               </label>
 
@@ -957,7 +925,7 @@ function App() {
               className="primary-button"
               type="button"
               onClick={handleUpload}
-              disabled={isUploading || !selectedVisit || !selectedFile || !effectiveChallanNumber.trim()}
+              disabled={isUploading || !selectedVisit || !selectedFile || !challanNumber.trim()}
             >
               {isUploading ? 'Submitting...' : 'Confirm and submit'}
             </button>
