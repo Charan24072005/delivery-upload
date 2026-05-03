@@ -13,6 +13,16 @@ const HOP_BY_HOP_HEADERS = new Set([
   'transfer-encoding',
 ])
 
+async function readRequestBody(req) {
+  const chunks = []
+
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+
+  return Buffer.concat(chunks)
+}
+
 export default async function handler(req, res) {
   const rawPath = Array.isArray(req.query.path) ? req.query.path.join('/') : req.query.path || ''
   const normalizedPath = String(rawPath).replace(/^\/+/, '')
@@ -42,11 +52,17 @@ export default async function handler(req, res) {
     headers[key] = value
   })
 
+  const requestBody =
+    req.method === 'GET' || req.method === 'HEAD' ? undefined : await readRequestBody(req)
+
+  if (requestBody) {
+    headers['content-length'] = String(requestBody.length)
+  }
+
   const upstreamResponse = await fetch(targetUrl, {
     method: req.method,
     headers,
-    body: req.method === 'GET' || req.method === 'HEAD' ? undefined : req,
-    duplex: 'half',
+    body: requestBody,
   })
 
   res.status(upstreamResponse.status)
