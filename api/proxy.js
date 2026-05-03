@@ -6,10 +6,18 @@ export const config = {
 
 const TARGET_API_BASE = 'https://api.linengrass.com/api'
 
-const HOP_BY_HOP_HEADERS = new Set([
+const BLOCKED_FORWARD_HEADERS = new Set([
   'connection',
   'content-length',
   'host',
+  'origin',
+  'referer',
+  'sec-ch-ua',
+  'sec-ch-ua-mobile',
+  'sec-ch-ua-platform',
+  'sec-fetch-dest',
+  'sec-fetch-mode',
+  'sec-fetch-site',
   'transfer-encoding',
 ])
 
@@ -45,7 +53,7 @@ export default async function handler(req, res) {
 
   const headers = {}
   Object.entries(req.headers).forEach(([key, value]) => {
-    if (HOP_BY_HOP_HEADERS.has(key.toLowerCase()) || value === undefined) {
+    if (BLOCKED_FORWARD_HEADERS.has(key.toLowerCase()) || value === undefined) {
       return
     }
 
@@ -68,7 +76,7 @@ export default async function handler(req, res) {
   res.status(upstreamResponse.status)
 
   upstreamResponse.headers.forEach((value, key) => {
-    if (HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
+    if (BLOCKED_FORWARD_HEADERS.has(key.toLowerCase())) {
       return
     }
 
