@@ -306,6 +306,7 @@ function App() {
   const [uploadLog, setUploadLog] = useState({})
   const [lastUploadResponse, setLastUploadResponse] = useState(null)
   const [lastOcrResponse, setLastOcrResponse] = useState(null)
+  const [lastAutofillKey, setLastAutofillKey] = useState('')
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
@@ -351,9 +352,11 @@ function App() {
     setSelectedFile(file)
     setMessage('')
     setError('')
+    setLastOcrResponse(null)
 
     if (!file) {
       setPreviewUrl('')
+      setLastAutofillKey('')
       return
     }
 
@@ -363,6 +366,77 @@ function App() {
     }
     reader.readAsDataURL(file)
   }
+
+  const runOcrAutofill = async (file) => {
+    if (!selectedCustomer || !selectedVisit?.visitId || !selectedDeliveryRequestId) {
+      return
+    }
+
+    if (!normalizeIdValue(settings.dcId) || !file) {
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('dcId', normalizeIdValue(settings.dcId))
+    formData.append('targetLevelReferenceType', 'DELIVERY')
+    formData.append('targetLevelReferenceId', selectedDeliveryRequestId)
+
+    setIsAutofilling(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const response = await fetch(buildOcrUploadUrl(settings, selectedVisit.visitId), {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: formData,
+      })
+
+      const data = await parseResponse(response)
+
+      if (!response.ok) {
+        throw new Error(typeof data === 'string' ? data : data?.message || 'OCR autofill failed.')
+      }
+
+      setLastOcrResponse(data)
+      const nextChallanNumber = data?.challanNumber ?? data?.ocrData?.challanNumber ?? ''
+      setChallanNumber(String(nextChallanNumber || ''))
+      setMessage('Challan number was auto-filled from OCR. Review it and submit.')
+    } catch (autofillError) {
+      setError(autofillError instanceof Error ? autofillError.message : 'OCR autofill failed.')
+    } finally {
+      setIsAutofilling(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedFile || !selectedVisit?.visitId || !selectedDeliveryRequestId || !normalizeIdValue(settings.dcId)) {
+      return
+    }
+
+    const autofillKey = [
+      selectedFile.name,
+      selectedFile.size,
+      selectedFile.lastModified,
+      selectedVisit.visitId,
+      selectedDeliveryRequestId,
+      normalizeIdValue(settings.dcId),
+    ].join(':')
+
+    if (lastAutofillKey === autofillKey) {
+      return
+    }
+
+    setLastAutofillKey(autofillKey)
+    runOcrAutofill(selectedFile)
+  }, [
+    lastAutofillKey,
+    selectedDeliveryRequestId,
+    selectedFile,
+    selectedVisit?.visitId,
+    settings.dcId,
+  ])
 
   useEffect(() => {
     if (!hasAuth) {
@@ -608,71 +682,6 @@ function App() {
     }
   }
 
-  const handleAutofillFromOcr = async () => {
-    if (!selectedCustomer) {
-      setError('Select a customer first.')
-      setMessage('')
-      return
-    }
-
-    if (!selectedVisit?.visitId) {
-      setError('No visit found for the selected customer and day.')
-      setMessage('')
-      return
-    }
-
-    if (!selectedDeliveryRequestId) {
-      setError('No delivery request found for the selected visit.')
-      setMessage('')
-      return
-    }
-
-    if (!normalizeIdValue(settings.dcId)) {
-      setError('DC ID is required.')
-      setMessage('')
-      return
-    }
-
-    if (!selectedFile) {
-      setError('Choose an image before autofill.')
-      setMessage('')
-      return
-    }
-
-    const formData = new FormData()
-    formData.append('file', selectedFile)
-    formData.append('dcId', normalizeIdValue(settings.dcId))
-    formData.append('targetLevelReferenceType', 'DELIVERY')
-    formData.append('targetLevelReferenceId', selectedDeliveryRequestId)
-
-    setIsAutofilling(true)
-    setError('')
-    setMessage('')
-
-    try {
-      const response = await fetch(buildOcrUploadUrl(settings, selectedVisit.visitId), {
-        method: 'POST',
-        headers: buildHeaders(),
-        body: formData,
-      })
-
-      const data = await parseResponse(response)
-
-      if (!response.ok) {
-        throw new Error(typeof data === 'string' ? data : data?.message || 'OCR autofill failed.')
-      }
-
-      setLastOcrResponse(data)
-      const nextChallanNumber = data?.challanNumber ?? data?.ocrData?.challanNumber ?? ''
-      setChallanNumber(String(nextChallanNumber || ''))
-      setMessage('OCR autofill complete. Challan number auto-filled, change if needed and confirm.')
-    } catch (autofillError) {
-      setError(autofillError instanceof Error ? autofillError.message : 'OCR autofill failed.')
-    } finally {
-      setIsAutofilling(false)
-    }
-  }
-
   return (
     <main className="app-shell">
       <section className="hero-panel">
@@ -680,9 +689,9 @@ function App() {
           <p className="eyebrow">Delivery Challan Uploader</p>
           <h1>Upload delivery challans against the right customer visit.</h1>
           <p className="hero-copy">
-            Enter your company credentials, choose a month, and select the customer. The app
-            automatically fetches matching trips, maps visits by date, and helps you upload the
-            challan to the correct delivery request.
+            Choose a warehouse, select a month and customer, then upload the challan image. The
+            app fetches matching visits, reads the challan number through OCR, and submits the
+            final upload against the correct delivery request.
           </p>
         </div>
       </section>
@@ -895,15 +904,6 @@ function App() {
                 </small>
               </div>
             </div>
-
-            <button
-              className="ghost-button"
-              type="button"
-              onClick={handleAutofillFromOcr}
-              disabled={isAutofilling || !selectedVisit || !selectedDeliveryRequestId || !selectedFile}
-            >
-              {isAutofilling ? 'Autofilling...' : 'Autofill from OCR'}
-            </button>
 
             <button
               className="primary-button"
