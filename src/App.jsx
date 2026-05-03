@@ -45,7 +45,7 @@ const buildDays = (monthValue) => {
 
 const readStoredState = () => {
   const fallback = {
-    apiBaseUrl: 'https://apidev.linengrass.com/api',
+    apiBaseUrl: '/api/proxy',
     customerPath: '/customers',
     visitSearchPath: '/trips/search',
     tripDetailsPathTemplate: '/trips/{tripId}/details',
@@ -85,6 +85,13 @@ const readStoredState = () => {
       parsed.ocrUploadPathTemplate === 'trips/visits/{visitId}/delivery-challans/upload-with-number'
     ) {
       parsed.ocrUploadPathTemplate = fallback.ocrUploadPathTemplate
+    }
+
+    if (
+      parsed.apiBaseUrl === 'https://apidev.linengrass.com/api' ||
+      parsed.apiBaseUrl === 'https://api.linengrass.com/api'
+    ) {
+      parsed.apiBaseUrl = fallback.apiBaseUrl
     }
 
     return parsed
@@ -696,7 +703,7 @@ function App() {
               type="url"
               value={settings.apiBaseUrl}
               onChange={(event) => handleSettingsChange('apiBaseUrl', event.target.value)}
-              placeholder="https://apidev.linengrass.com/api"
+              placeholder="/api/proxy"
             />
           </label>
 
