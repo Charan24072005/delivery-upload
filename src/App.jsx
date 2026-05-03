@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 const STORAGE_KEY = 'dc-upload-dashboard'
+const HARDCODED_COMPANY_ID = '100000'
+const HARDCODED_BEARER_TOKEN =
+  'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjaGFyYW5AZ21haWwuY29tIiwidXNlcklkIjoxMDAzMDUsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc3NzE2Mzg1MSwiZXhwIjoxNzgyMzQ3ODUxfQ.Y5MMdYpf2qLO7G0IUYqzIQU5MhniWSWzI1kC_6L6-R4'
+const WAREHOUSES = [
+  { label: 'Malleswaram', dcId: '100000' },
+  { label: 'Jayanagar', dcId: '100001' },
+]
 
 const getNextMonthValue = () => {
   const now = new Date()
@@ -43,9 +50,9 @@ const readStoredState = () => {
     tripDetailsPathTemplate: '/trips/{tripId}/details',
     ocrUploadPathTemplate: '/trips/visits/{visitId}/delivery-challans/upload',
     uploadPathTemplate: '/trips/visits/{visitId}/delivery-challans/upload-with-number',
-    companyId: '100000',
-    dcId: '',
-    token: '',
+    companyId: HARDCODED_COMPANY_ID,
+    dcId: WAREHOUSES[0].dcId,
+    token: HARDCODED_BEARER_TOKEN,
     monthValue: getNextMonthValue(),
   }
 
@@ -86,8 +93,11 @@ const readStoredState = () => {
       parsed.apiBaseUrl = fallback.apiBaseUrl
     }
 
-    if (!normalizeIdValue(parsed.companyId)) {
-      parsed.companyId = fallback.companyId
+    parsed.companyId = fallback.companyId
+    parsed.token = fallback.token
+
+    if (!WAREHOUSES.some((warehouse) => warehouse.dcId === parsed.dcId)) {
+      parsed.dcId = fallback.dcId
     }
 
     return parsed
@@ -120,9 +130,9 @@ const buildApiUrl = (baseUrl, path) => {
   return new URL(combinedUrl, window.location.origin)
 }
 
-const buildHeaders = (settings) => ({
-  'X-Company-ID': '100000',
-  Authorization: `Bearer ${normalizeTokenValue(settings.token)}`,
+const buildHeaders = () => ({
+  'X-Company-ID': HARDCODED_COMPANY_ID,
+  Authorization: `Bearer ${HARDCODED_BEARER_TOKEN}`,
 })
 
 const normalizeName = (value) => value?.trim().toLowerCase() ?? ''
@@ -301,7 +311,7 @@ function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
   }, [settings])
 
-  const hasAuth = Boolean(normalizeIdValue(settings.companyId) && normalizeTokenValue(settings.token))
+  const hasAuth = true
   const days = useMemo(() => buildDays(settings.monthValue), [settings.monthValue])
   const availableCustomers = hasAuth ? customers : []
   const selectedCustomerIdSafe =
@@ -372,9 +382,9 @@ function App() {
         }
 
         const response = await fetch(url.toString(), {
-          headers: buildHeaders(settings),
-          signal: controller.signal,
-        })
+            headers: buildHeaders(),
+            signal: controller.signal,
+          })
 
         const data = await parseResponse(response)
 
@@ -426,7 +436,7 @@ function App() {
         }
 
         const response = await fetch(url.toString(), {
-          headers: buildHeaders(settings),
+          headers: buildHeaders(),
           signal: controller.signal,
         })
 
@@ -440,7 +450,7 @@ function App() {
         const tripDetailsResponses = await Promise.all(
           trips.map(async (trip) => {
             const detailsResponse = await fetch(buildTripDetailsUrl(settings, trip.id), {
-              headers: buildHeaders(settings),
+              headers: buildHeaders(),
               signal: controller.signal,
             })
 
@@ -521,12 +531,6 @@ function App() {
       return
     }
 
-    if (!normalizeTokenValue(settings.token)) {
-      setError('Bearer token is required.')
-      setMessage('')
-      return
-    }
-
     if (!normalizeIdValue(settings.dcId)) {
       setError('DC ID is required.')
       setMessage('')
@@ -559,7 +563,7 @@ function App() {
     try {
       const response = await fetch(requestUrl, {
         method: 'POST',
-        headers: buildHeaders(settings),
+        headers: buildHeaders(),
         body: formData,
       })
 
@@ -623,12 +627,6 @@ function App() {
       return
     }
 
-    if (!normalizeTokenValue(settings.token)) {
-      setError('Bearer token is required.')
-      setMessage('')
-      return
-    }
-
     if (!normalizeIdValue(settings.dcId)) {
       setError('DC ID is required.')
       setMessage('')
@@ -654,7 +652,7 @@ function App() {
     try {
       const response = await fetch(buildOcrUploadUrl(settings, selectedVisit.visitId), {
         method: 'POST',
-        headers: buildHeaders(settings),
+        headers: buildHeaders(),
         body: formData,
       })
 
@@ -700,18 +698,18 @@ function App() {
 
           <div className="inline-fields inline-fields--triple-compact">
             <label className="field">
-              <span>DC ID</span>
-              <input
-                type="text"
+              <span>Warehouse</span>
+              <select
+                className="field-select"
                 value={settings.dcId}
                 onChange={(event) => handleSettingsChange('dcId', event.target.value)}
-                placeholder="100001"
-                inputMode="numeric"
-                autoCapitalize="off"
-                autoCorrect="off"
-                autoComplete="off"
-                spellCheck="false"
-              />
+              >
+                {WAREHOUSES.map((warehouse) => (
+                  <option key={warehouse.dcId} value={warehouse.dcId}>
+                    {`${warehouse.label} - ${warehouse.dcId}`}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="field">
@@ -723,20 +721,6 @@ function App() {
               />
             </label>
           </div>
-
-          <label className="field">
-            <span>Bearer token</span>
-            <textarea
-              rows="5"
-              value={settings.token}
-              onChange={(event) => handleSettingsChange('token', event.target.value)}
-              placeholder="Paste bearer token here"
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck="false"
-            />
-          </label>
         </div>
 
         <div className="panel stack">
@@ -779,7 +763,7 @@ function App() {
             </div>
           ) : (
             <p className="muted-box">
-              Enter the company ID and bearer token to load the customer list automatically.
+              Select a warehouse to load the matching customer list automatically.
             </p>
           )}
 
