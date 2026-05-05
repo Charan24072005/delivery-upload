@@ -9,7 +9,6 @@ const WAREHOUSES = [
   { label: 'Malleswaram', dcId: '100000' },
   { label: 'Jayanagar', dcId: '100001' },
 ]
-const DEFAULT_CROP = { x: 10, y: 10, width: 80, height: 80 }
 
 const getNextMonthValue = () => {
   const now = new Date()
@@ -289,63 +288,6 @@ async function parseResponse(response) {
   }
 }
 
-const clampCropValue = (value, min, max) => Math.min(Math.max(value, min), max)
-
-const loadImage = (file) =>
-  new Promise((resolve, reject) => {
-    const image = new Image()
-    const objectUrl = URL.createObjectURL(file)
-
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve(image)
-    }
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('Unable to load the selected image.'))
-    }
-
-    image.src = objectUrl
-  })
-
-const buildCroppedImageFile = async (file, crop) => {
-  const image = await loadImage(file)
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d')
-
-  if (!context) {
-    throw new Error('Image cropping is not supported in this browser.')
-  }
-
-  const cropX = Math.round((crop.x / 100) * image.width)
-  const cropY = Math.round((crop.y / 100) * image.height)
-  const cropWidth = Math.max(1, Math.round((crop.width / 100) * image.width))
-  const cropHeight = Math.max(1, Math.round((crop.height / 100) * image.height))
-
-  canvas.width = cropWidth
-  canvas.height = cropHeight
-
-  context.drawImage(image, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
-
-  const outputType = file.type || 'image/jpeg'
-  const blob = await new Promise((resolve, reject) => {
-    canvas.toBlob((result) => {
-      if (!result) {
-        reject(new Error('Unable to generate the cropped image.'))
-        return
-      }
-
-      resolve(result)
-    }, outputType)
-  })
-
-  return new File([blob], file.name, {
-    type: outputType,
-    lastModified: Date.now(),
-  })
-}
-
 function App() {
   const [settings, setSettings] = useState(readStoredState)
   const [customers, setCustomers] = useState([])
@@ -353,7 +295,6 @@ function App() {
   const [selectedDayKey, setSelectedDayKey] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
-  const [crop, setCrop] = useState(DEFAULT_CROP)
   const [challanNumber, setChallanNumber] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -392,7 +333,6 @@ function App() {
   const clearUploadDraft = () => {
     setSelectedFile(null)
     setPreviewUrl('')
-    setCrop(DEFAULT_CROP)
     setChallanNumber('')
     setMessage('')
     setError('')
@@ -412,7 +352,6 @@ function App() {
     setMessage('')
     setError('')
     setLastOcrResponse(null)
-    setCrop(DEFAULT_CROP)
 
     if (!file) {
       setPreviewUrl('')
@@ -426,27 +365,7 @@ function App() {
     reader.readAsDataURL(file)
   }
 
-  const handleCropChange = (field, rawValue) => {
-    const value = Number(rawValue)
-
-    setCrop((current) => {
-      if (field === 'x') {
-        return { ...current, x: clampCropValue(value, 0, 100 - current.width) }
-      }
-
-      if (field === 'y') {
-        return { ...current, y: clampCropValue(value, 0, 100 - current.height) }
-      }
-
-      if (field === 'width') {
-        return { ...current, width: clampCropValue(value, 10, 100 - current.x) }
-      }
-
-      return { ...current, height: clampCropValue(value, 10, 100 - current.y) }
-    })
-  }
-
-  const runOcrAutofill = async (file, activeCrop) => {
+  const runOcrAutofill = async (file) => {
     if (!selectedCustomer || !selectedVisit?.visitId || !selectedDeliveryRequestId) {
       return
     }
@@ -455,9 +374,8 @@ function App() {
       return
     }
 
-    const croppedFile = await buildCroppedImageFile(file, activeCrop)
     const formData = new FormData()
-    formData.append('file', croppedFile)
+    formData.append('file', file)
     formData.append('dcId', normalizeIdValue(settings.dcId))
     formData.append('targetLevelReferenceType', 'DELIVERY')
     formData.append('targetLevelReferenceId', selectedDeliveryRequestId)
@@ -675,9 +593,8 @@ function App() {
       return
     }
 
-    const croppedFile = await buildCroppedImageFile(selectedFile, crop)
     const formData = new FormData()
-    formData.append('file', croppedFile)
+    formData.append('file', selectedFile)
     formData.append('dcId', normalizeIdValue(settings.dcId))
     formData.append('challanNumber', challanNumber.trim())
 
@@ -709,7 +626,7 @@ function App() {
           [selectedDayKeySafe]: {
             challanNumber: data?.challanNumber ?? '',
             uploadedAt: new Date().toLocaleString('en-IN'),
-            fileName: croppedFile.name,
+            fileName: selectedFile.name,
             visitId: selectedVisit.visitId,
             deliveryRequestId: selectedDeliveryRequestId,
             challanUrl: data?.challanUrl ?? '',
@@ -734,7 +651,6 @@ function App() {
       }
       setSelectedFile(null)
       setPreviewUrl('')
-      setCrop(DEFAULT_CROP)
       setChallanNumber('')
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Upload failed.')
@@ -751,8 +667,8 @@ function App() {
           <h1>Upload delivery challans against the right customer visit.</h1>
           <p className="hero-copy">
             Choose a warehouse, select a month and customer, then upload the challan image. The
-            app fetches matching visits, lets you crop the preview, reads the challan number
-            through OCR, and submits the final upload against the correct delivery request.
+            app fetches matching visits, reads the challan number through OCR, and submits the
+            final upload against the correct delivery request.
           </p>
         </div>
       </section>
@@ -953,6 +869,9 @@ function App() {
                   value={challanNumber}
                   onChange={(event) => setChallanNumber(event.target.value)}
                   placeholder="Enter challan number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="off"
                 />
               </label>
 
@@ -960,7 +879,7 @@ function App() {
                 <span>{selectedFile ? selectedFile.name : 'Choose a delivery challan image'}</span>
                 <small>
                   {selectedVisit
-                    ? `The cropped image will be uploaded for visit ${selectedVisit.visitId} and linked to delivery request ${selectedDeliveryRequestId || '--'}.`
+                    ? `The selected image will be uploaded for visit ${selectedVisit.visitId} and linked to delivery request ${selectedDeliveryRequestId || '--'}.`
                     : 'Choose a day that has an available visit first.'}
                 </small>
               </div>
@@ -969,7 +888,7 @@ function App() {
             <button
               className="ghost-button"
               type="button"
-              onClick={() => runOcrAutofill(selectedFile, crop)}
+              onClick={() => runOcrAutofill(selectedFile)}
               disabled={isAutofilling || !selectedVisit || !selectedDeliveryRequestId || !selectedFile}
             >
               {isAutofilling ? 'Autofilling...' : 'Autofill from OCR'}
@@ -997,66 +916,7 @@ function App() {
             </div>
 
             {previewUrl ? (
-              <div className="crop-preview-shell">
-                <div className="crop-preview-stage">
-                  <img className="preview-image" src={previewUrl} alt="Delivery challan preview" />
-                  <div
-                    className="crop-selection"
-                    style={{
-                      left: `${crop.x}%`,
-                      top: `${crop.y}%`,
-                      width: `${crop.width}%`,
-                      height: `${crop.height}%`,
-                    }}
-                  />
-                </div>
-
-                <div className="crop-controls">
-                  <label className="field">
-                    <span>{`Crop left (${crop.x}%)`}</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max={String(100 - crop.width)}
-                      value={crop.x}
-                      onChange={(event) => handleCropChange('x', event.target.value)}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span>{`Crop top (${crop.y}%)`}</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max={String(100 - crop.height)}
-                      value={crop.y}
-                      onChange={(event) => handleCropChange('y', event.target.value)}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span>{`Crop width (${crop.width}%)`}</span>
-                    <input
-                      type="range"
-                      min="10"
-                      max={String(100 - crop.x)}
-                      value={crop.width}
-                      onChange={(event) => handleCropChange('width', event.target.value)}
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span>{`Crop height (${crop.height}%)`}</span>
-                    <input
-                      type="range"
-                      min="10"
-                      max={String(100 - crop.y)}
-                      value={crop.height}
-                      onChange={(event) => handleCropChange('height', event.target.value)}
-                    />
-                  </label>
-                </div>
-              </div>
+              <img className="preview-image" src={previewUrl} alt="Delivery challan preview" />
             ) : (
               <div className="preview-placeholder">
                 Select a visit day and image to preview the delivery challan here.
