@@ -288,6 +288,71 @@ async function parseResponse(response) {
   }
 }
 
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+    reader.onerror = () => reject(new Error('Unable to preview the selected image.'))
+    reader.readAsDataURL(file)
+  })
+
+const loadImageElement = (file) =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const image = new Image()
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(image)
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Unable to process the selected image.'))
+    }
+
+    image.src = objectUrl
+  })
+
+const compressImageFile = async (file, quality = 0.5) => {
+  if (!file?.type?.startsWith('image/')) {
+    return file
+  }
+
+  const image = await loadImageElement(file)
+  const canvas = document.createElement('canvas')
+  canvas.width = image.naturalWidth || image.width
+  canvas.height = image.naturalHeight || image.height
+
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Unable to prepare the selected image.')
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (nextBlob) => {
+        if (!nextBlob) {
+          reject(new Error('Unable to compress the selected image.'))
+          return
+        }
+
+        resolve(nextBlob)
+      },
+      'image/jpeg',
+      quality,
+    )
+  })
+
+  const originalName = file.name.replace(/\.[^.]+$/, '')
+  return new File([blob], `${originalName}.jpg`, {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
+  })
+}
+
 function App() {
   const [settings, setSettings] = useState(readStoredState)
   const [customers, setCustomers] = useState([])
@@ -300,6 +365,7 @@ function App() {
   const [error, setError] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [isAutofilling, setIsAutofilling] = useState(false)
+  const [isPreparingFile, setIsPreparingFile] = useState(false)
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false)
   const [isLoadingVisits, setIsLoadingVisits] = useState(false)
   const [visitsByDay, setVisitsByDay] = useState({})
@@ -347,22 +413,34 @@ function App() {
     }
   }
 
-  const handleFileChange = (file) => {
-    setSelectedFile(file)
+  const handleFileChange = async (file) => {
     setMessage('')
     setError('')
     setLastOcrResponse(null)
 
     if (!file) {
+      setSelectedFile(null)
       setPreviewUrl('')
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      setPreviewUrl(typeof reader.result === 'string' ? reader.result : '')
+    setIsPreparingFile(true)
+
+    try {
+      const compressedFile = await compressImageFile(file, 0.5)
+      setSelectedFile(compressedFile)
+      setPreviewUrl(await readFileAsDataUrl(compressedFile))
+    } catch (fileError) {
+      setSelectedFile(file)
+      setPreviewUrl(await readFileAsDataUrl(file))
+      setError(
+        fileError instanceof Error
+          ? `${fileError.message} Upload will continue with the original image.`
+          : 'Image compression failed. Upload will continue with the original image.',
+      )
+    } finally {
+      setIsPreparingFile(false)
     }
-    reader.readAsDataURL(file)
   }
 
   const runOcrAutofill = async (file) => {
@@ -889,7 +967,13 @@ function App() {
               className="ghost-button"
               type="button"
               onClick={() => runOcrAutofill(selectedFile)}
-              disabled={isAutofilling || !selectedVisit || !selectedDeliveryRequestId || !selectedFile}
+              disabled={
+                isPreparingFile ||
+                isAutofilling ||
+                !selectedVisit ||
+                !selectedDeliveryRequestId ||
+                !selectedFile
+              }
             >
               {isAutofilling ? 'Autofilling...' : 'Autofill from OCR'}
             </button>
@@ -898,7 +982,13 @@ function App() {
               className="primary-button"
               type="button"
               onClick={handleUpload}
-              disabled={isUploading || !selectedVisit || !selectedFile || !challanNumber.trim()}
+              disabled={
+                isPreparingFile ||
+                isUploading ||
+                !selectedVisit ||
+                !selectedFile ||
+                !challanNumber.trim()
+              }
             >
               {isUploading ? 'Submitting...' : 'Confirm and submit'}
             </button>
