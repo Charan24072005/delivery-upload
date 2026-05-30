@@ -553,9 +553,6 @@ function App() {
         const url = buildApiUrl(settings.apiBaseUrl, settings.visitSearchPath)
         url.searchParams.set('startDate', startDate)
         url.searchParams.set('endDate', endDate)
-        if (normalizeIdValue(settings.dcId)) {
-          url.searchParams.set('dcId', normalizeIdValue(settings.dcId))
-        }
 
         const response = await fetch(url.toString(), {
           headers: buildHeaders(),
