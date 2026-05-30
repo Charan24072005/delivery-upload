@@ -251,6 +251,11 @@ const buildOcrUploadUrl = (settings, visitId) =>
     String(visitId),
   )}`
 
+const buildUpdateNumberUrl = (settings, visitId) =>
+  `${normalizeBaseUrl(settings.apiBaseUrl)}/trips/visits/${String(
+    visitId,
+  )}/delivery-challans/update-number`
+
 const flattenTripVisits = (payload) =>
   parseCollection(payload).flatMap((trip) => {
     const tripVisits = Array.isArray(trip?.visits) ? trip.visits : []
@@ -372,6 +377,10 @@ function App() {
   const [uploadLog, setUploadLog] = useState({})
   const [lastUploadResponse, setLastUploadResponse] = useState(null)
   const [lastOcrResponse, setLastOcrResponse] = useState(null)
+  const [isEditingDcNumber, setIsEditingDcNumber] = useState(false)
+  const [oldChallanNumber, setOldChallanNumber] = useState('')
+  const [editedChallanNumber, setEditedChallanNumber] = useState('')
+  const [isUpdatingDcNumber, setIsUpdatingDcNumber] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
@@ -402,6 +411,9 @@ function App() {
     setChallanNumber('')
     setMessage('')
     setError('')
+    setIsEditingDcNumber(false)
+    setOldChallanNumber('')
+    setEditedChallanNumber('')
   }
 
   const handleSettingsChange = (field, value) => {
@@ -734,6 +746,94 @@ function App() {
     }
   }
 
+  const handleDcNumberEditStart = () => {
+    setIsEditingDcNumber((current) => {
+      const nextValue = !current
+
+      if (nextValue) {
+        setOldChallanNumber(challanNumber.trim())
+        setEditedChallanNumber(challanNumber.trim())
+        setMessage('')
+        setError('')
+      }
+
+      return nextValue
+    })
+  }
+
+  const handleUpdateDcNumber = async () => {
+    if (!selectedVisit?.visitId) {
+      setError('No visit found for the selected customer and day.')
+      setMessage('')
+      return
+    }
+
+    if (!oldChallanNumber.trim()) {
+      setError('Old challan number is required.')
+      setMessage('')
+      return
+    }
+
+    if (!editedChallanNumber.trim()) {
+      setError('New challan number is required.')
+      setMessage('')
+      return
+    }
+
+    setIsUpdatingDcNumber(true)
+    setError('')
+    setMessage('')
+
+    try {
+      const response = await fetch(buildUpdateNumberUrl(settings, selectedVisit.visitId), {
+        method: 'PUT',
+        headers: {
+          ...buildHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          oldChallanNumber: oldChallanNumber.trim(),
+          newChallanNumber: editedChallanNumber.trim(),
+        }),
+      })
+
+      const data = await parseResponse(response)
+
+      if (!response.ok) {
+        throw new Error(
+          typeof data === 'string' ? data : data?.message || 'Unable to update DC number.',
+        )
+      }
+
+      setLastUploadResponse(data)
+      setChallanNumber(String(data?.challanNumber ?? editedChallanNumber.trim()))
+      setUploadLog((current) => ({
+        ...current,
+        [selectedCustomer?.id ?? '']: {
+          ...(current[selectedCustomer?.id ?? ''] ?? {}),
+          [selectedDayKeySafe]: {
+            ...(current[selectedCustomer?.id ?? '']?.[selectedDayKeySafe] ?? {}),
+            challanNumber: data?.challanNumber ?? editedChallanNumber.trim(),
+            uploadedAt: new Date().toLocaleString('en-IN'),
+            visitId: selectedVisit.visitId,
+            deliveryRequestId: selectedDeliveryRequestId,
+            challanUrl: data?.challanUrl ?? '',
+            challanDate: data?.challanDate ?? '',
+            notes: data?.notes ?? '',
+          },
+        },
+      }))
+      setMessage('DC number updated successfully for the selected visit.')
+      setIsEditingDcNumber(false)
+      setOldChallanNumber('')
+      setEditedChallanNumber('')
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Unable to update DC number.')
+    } finally {
+      setIsUpdatingDcNumber(false)
+    }
+  }
+
   return (
     <main className="app-shell">
       <section className="hero-panel">
@@ -974,6 +1074,64 @@ function App() {
             >
               {isAutofilling ? 'Autofilling...' : 'Autofill from OCR'}
             </button>
+
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={handleDcNumberEditStart}
+              disabled={isUploading || isPreparingFile || isUpdatingDcNumber || !selectedVisit}
+            >
+              {isEditingDcNumber ? 'Close DC Number Edit' : 'Edit DC Number'}
+            </button>
+
+            {isEditingDcNumber ? (
+              <div className="detail-card">
+                <p className="detail-label">Edit DC Number</p>
+                <span>
+                  {selectedVisit
+                    ? `Update challan number for visit ${selectedVisit.visitId}.`
+                    : 'Select a visit first.'}
+                </span>
+
+                <div className="inline-fields">
+                  <label className="field">
+                    <span>Old challan number</span>
+                    <input
+                      type="text"
+                      value={oldChallanNumber}
+                      onChange={(event) => setOldChallanNumber(event.target.value)}
+                      placeholder="Enter current challan number"
+                      autoComplete="off"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>New challan number</span>
+                    <input
+                      type="text"
+                      value={editedChallanNumber}
+                      onChange={(event) => setEditedChallanNumber(event.target.value)}
+                      placeholder="Enter new challan number"
+                      autoComplete="off"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={handleUpdateDcNumber}
+                  disabled={
+                    isUpdatingDcNumber ||
+                    !selectedVisit ||
+                    !oldChallanNumber.trim() ||
+                    !editedChallanNumber.trim()
+                  }
+                >
+                  {isUpdatingDcNumber ? 'Updating...' : 'Update DC Number'}
+                </button>
+              </div>
+            ) : null}
 
             <button
               className="primary-button"
