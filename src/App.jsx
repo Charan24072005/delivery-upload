@@ -227,6 +227,8 @@ const normalizeVisit = (item) => {
     deliveryRequestId: String(firstDeliveryRequest?.id ?? ''),
     deliveryRequestNumber: firstDeliveryRequest?.requestNumber ?? '',
     deliveryRequestStatus: firstDeliveryRequest?.status ?? '',
+    challanNumber: firstDeliveryRequest?.challanNumber ?? '',
+    challanUrl: firstDeliveryRequest?.challanUrl ?? '',
     dayKey,
     label: item?.status ?? item?.tripStatus ?? 'Visit available',
     raw: item,
@@ -405,6 +407,7 @@ function App() {
   const selectedVisit = selectedDayVisits[0] ?? null
   const selectedDeliveryRequestId = selectedVisit?.deliveryRequestId ?? ''
   const selectedDeliveryRequestNumber = selectedVisit?.deliveryRequestNumber ?? ''
+  const selectedVisitChallanNumber = selectedVisit?.challanNumber ?? ''
   const clearUploadDraft = () => {
     setSelectedFile(null)
     setPreviewUrl('')
@@ -751,7 +754,7 @@ function App() {
       const nextValue = !current
 
       if (nextValue) {
-        setOldChallanNumber(challanNumber.trim())
+        setOldChallanNumber(selectedVisitChallanNumber.trim())
         setEditedChallanNumber(challanNumber.trim())
         setMessage('')
         setError('')
@@ -1009,6 +1012,11 @@ function App() {
                 {selectedDeliveryRequestNumber
                   ? `Delivery request number: ${selectedDeliveryRequestNumber}`
                   : 'Delivery request number not available'}
+              </span>
+              <span>
+                {selectedVisitChallanNumber
+                  ? `Existing challan number: ${selectedVisitChallanNumber}`
+                  : 'Existing challan number not available'}
               </span>
               <span>{selectedVisit ? `Upload target: DELIVERY / ${selectedDeliveryRequestId || '--'}` : 'Upload target pending'}</span>
               {selectedDayVisits.length > 1 ? (
