@@ -4,7 +4,7 @@ import './App.css'
 const STORAGE_KEY = 'dc-upload-dashboard'
 const HARDCODED_COMPANY_ID = '100000'
 const HARDCODED_BEARER_TOKEN =
-  'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjaGFyYW5AZ21haWwuY29tIiwidXNlcklkIjoxMDAzMDUsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc3NzE2Mzg1MSwiZXhwIjoxNzgyMzQ3ODUxfQ.Y5MMdYpf2qLO7G0IUYqzIQU5MhniWSWzI1kC_6L6-R4'
+  'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJtYXhpQGdtYWlsLmNvbSIsInVzZXJJZCI6MTAyMDIyLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3Nzk1MzEyNTQsImV4cCI6MTc4NDcxNTI1NH0.1yOJK0TOxkZSV84WhFp78icslsAAO__yx2vM1qpHs-g'
 const WAREHOUSES = [
   { label: 'Malleswaram', dcId: '100000' },
   { label: 'Jayanagar', dcId: '100001' },
