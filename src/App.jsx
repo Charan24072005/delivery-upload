@@ -221,14 +221,23 @@ const normalizeVisit = (item) => {
   const rawDate = getVisitDateValue(item)
   const dayKey = toDayKey(rawDate)
   const firstDeliveryRequest = Array.isArray(item?.deliveryRequests) ? item.deliveryRequests[0] : null
+  const firstPickupRequest = Array.isArray(item?.pickupRequests) ? item.pickupRequests[0] : null
+
+  const deliveryRequestId = String(firstDeliveryRequest?.id ?? '')
+  const pickupRequestId = String(firstPickupRequest?.id ?? '')
+  const isPickup = !deliveryRequestId && !!pickupRequestId
 
   return {
     visitId: String(item?.visitId ?? item?.id ?? ''),
-    deliveryRequestId: String(firstDeliveryRequest?.id ?? ''),
+    deliveryRequestId,
     deliveryRequestNumber: firstDeliveryRequest?.requestNumber ?? '',
     deliveryRequestStatus: firstDeliveryRequest?.status ?? '',
-    challanNumber: firstDeliveryRequest?.challanNumber ?? '',
-    challanUrl: firstDeliveryRequest?.challanUrl ?? '',
+    pickupRequestId,
+    pickupRequestNumber: firstPickupRequest?.requestNumber ?? '',
+    pickupRequestStatus: firstPickupRequest?.status ?? '',
+    isPickup,
+    challanNumber: isPickup ? (firstPickupRequest?.challanNumber ?? '') : (firstDeliveryRequest?.challanNumber ?? ''),
+    challanUrl: isPickup ? (firstPickupRequest?.challanUrl ?? '') : (firstDeliveryRequest?.challanUrl ?? ''),
     dayKey,
     label: item?.status ?? item?.tripStatus ?? 'Visit available',
     raw: item,
@@ -416,8 +425,12 @@ function App() {
     return null
   }, [selectedDayVisits, selectedVisitId])
 
-  const selectedDeliveryRequestId = selectedVisit?.deliveryRequestId ?? ''
-  const selectedDeliveryRequestNumber = selectedVisit?.deliveryRequestNumber ?? ''
+  const isPickup = selectedVisit ? !!selectedVisit.isPickup : false
+  const activeRequestId = isPickup ? (selectedVisit?.pickupRequestId ?? '') : (selectedVisit?.deliveryRequestId ?? '')
+  const activeRequestNumber = isPickup ? (selectedVisit?.pickupRequestNumber ?? '') : (selectedVisit?.deliveryRequestNumber ?? '')
+  const activeRequestType = isPickup ? 'PICKUP' : 'DELIVERY'
+  const selectedDeliveryRequestId = activeRequestId
+  const selectedDeliveryRequestNumber = activeRequestNumber
   const selectedVisitChallanNumber = selectedVisit?.challanNumber ?? ''
   const clearUploadDraft = () => {
     setSelectedFile(null)
@@ -482,7 +495,7 @@ function App() {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('dcId', normalizeIdValue(settings.dcId))
-    formData.append('targetLevelReferenceType', 'DELIVERY')
+    formData.append('targetLevelReferenceType', activeRequestType)
     formData.append('targetLevelReferenceId', selectedDeliveryRequestId)
 
     setIsAutofilling(true)
@@ -959,7 +972,7 @@ function App() {
             </div>
             <div className="summary-item">
               <strong>{isLoadingVisits ? '...' : selectedDeliveryRequestId || '--'}</strong>
-              <span>delivery target ID</span>
+              <span>{activeRequestType.toLowerCase()} target ID</span>
             </div>
           </div>
 
@@ -1019,20 +1032,20 @@ function App() {
               <span>{selectedVisit ? `Visit ID: ${selectedVisit.visitId}` : selectedDayVisits.length > 1 ? 'Please select a visit' : 'No visit available on this day'}</span>
               <span>
                 {selectedDeliveryRequestId
-                  ? `Delivery request ID: ${selectedDeliveryRequestId}`
-                  : selectedDayVisits.length > 1 ? 'Select a visit to view delivery request' : 'No delivery request available on this day'}
+                  ? `${activeRequestType === 'PICKUP' ? 'Pickup' : 'Delivery'} request ID: ${selectedDeliveryRequestId}`
+                  : selectedDayVisits.length > 1 ? `Select a visit to view request` : 'No delivery or pickup request available on this day'}
               </span>
               <span>
                 {selectedDeliveryRequestNumber
-                  ? `Delivery request number: ${selectedDeliveryRequestNumber}`
-                  : 'Delivery request number not available'}
+                  ? `${activeRequestType === 'PICKUP' ? 'Pickup' : 'Delivery'} request number: ${selectedDeliveryRequestNumber}`
+                  : 'Request number not available'}
               </span>
               <span>
                 {selectedVisitChallanNumber
                   ? `Existing challan number: ${selectedVisitChallanNumber}`
                   : 'Existing challan number not available'}
               </span>
-              <span>{selectedVisit ? `Upload target: DELIVERY / ${selectedDeliveryRequestId || '--'}` : 'Upload target pending'}</span>
+              <span>{selectedVisit ? `Upload target: ${activeRequestType} / ${selectedDeliveryRequestId || '--'}` : 'Upload target pending'}</span>
               {selectedDayVisits.length > 1 ? (
                 <span>{`${selectedDayVisits.length} visits found. Please select one of the visits below.`}</span>
               ) : null}
@@ -1059,8 +1072,14 @@ function App() {
                         >
                           <strong>Visit ID: {visit.visitId}</strong>
                           <span>Trip ID: {visit.raw?.tripId ?? 'N/A'} (Trip Status: {visit.raw?.tripStatus ?? 'N/A'})</span>
-                          {visit.deliveryRequestNumber && (
-                            <span>Delivery Request: {visit.deliveryRequestNumber}</span>
+                          {visit.isPickup ? (
+                            visit.pickupRequestNumber && (
+                              <span>Pickup Request: {visit.pickupRequestNumber}</span>
+                            )
+                          ) : (
+                            visit.deliveryRequestNumber && (
+                              <span>Delivery Request: {visit.deliveryRequestNumber}</span>
+                            )
                           )}
                           {visit.challanNumber && (
                             <span>Existing Challan: {visit.challanNumber}</span>
@@ -1112,7 +1131,7 @@ function App() {
                 <span>{selectedFile ? selectedFile.name : 'Choose a delivery challan image'}</span>
                 <small>
                   {selectedVisit
-                    ? `The selected image will be uploaded for visit ${selectedVisit.visitId} and linked to delivery request ${selectedDeliveryRequestId || '--'}.`
+                    ? `The selected image will be uploaded for visit ${selectedVisit.visitId} and linked to ${activeRequestType.toLowerCase()} request ${selectedDeliveryRequestId || '--'}.`
                     : 'Choose a day that has an available visit first.'}
                 </small>
               </div>
