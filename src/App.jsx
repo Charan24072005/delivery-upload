@@ -365,6 +365,7 @@ function App() {
   const [customers, setCustomers] = useState([])
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [selectedDayKey, setSelectedDayKey] = useState('')
+  const [selectedVisitId, setSelectedVisitId] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [challanNumber, setChallanNumber] = useState('')
@@ -404,7 +405,17 @@ function App() {
   const selectedDay = days.find((day) => day.key === selectedDayKeySafe)
   const effectiveVisitsByDay = hasAuth && selectedCustomerIdSafe ? visitsByDay : {}
   const selectedDayVisits = effectiveVisitsByDay[selectedDayKeySafe] ?? []
-  const selectedVisit = selectedDayVisits[0] ?? null
+
+  const selectedVisit = useMemo(() => {
+    if (selectedDayVisits.length === 1) {
+      return selectedDayVisits[0]
+    }
+    if (selectedDayVisits.length > 1) {
+      return selectedDayVisits.find((v) => v.visitId === selectedVisitId) ?? null
+    }
+    return null
+  }, [selectedDayVisits, selectedVisitId])
+
   const selectedDeliveryRequestId = selectedVisit?.deliveryRequestId ?? ''
   const selectedDeliveryRequestNumber = selectedVisit?.deliveryRequestNumber ?? ''
   const selectedVisitChallanNumber = selectedVisit?.challanNumber ?? ''
@@ -424,6 +435,7 @@ function App() {
 
     if (field === 'monthValue') {
       setSelectedDayKey('')
+      setSelectedVisitId('')
       clearUploadDraft()
     }
   }
@@ -906,6 +918,7 @@ function App() {
               onChange={(event) => {
                 setSelectedCustomerId(event.target.value)
                 setSelectedDayKey('')
+                setSelectedVisitId('')
                 clearUploadDraft()
               }}
               disabled={!availableCustomers.length}
@@ -979,6 +992,7 @@ function App() {
                 } ${availableVisit ? 'day-button--available' : 'day-button--empty'}`}
                 onClick={() => {
                   setSelectedDayKey(day.key)
+                  setSelectedVisitId('')
                   clearUploadDraft()
                 }}
               >
@@ -1002,11 +1016,11 @@ function App() {
               <p className="detail-label">Selected slot</p>
               <strong>{selectedDay ? selectedDay.key : 'Choose a day'}</strong>
               <span>{selectedCustomer ? selectedCustomer.name : 'Select customer first'}</span>
-              <span>{selectedVisit ? `Visit ID: ${selectedVisit.visitId}` : 'No visit available on this day'}</span>
+              <span>{selectedVisit ? `Visit ID: ${selectedVisit.visitId}` : selectedDayVisits.length > 1 ? 'Please select a visit' : 'No visit available on this day'}</span>
               <span>
                 {selectedDeliveryRequestId
                   ? `Delivery request ID: ${selectedDeliveryRequestId}`
-                  : 'No delivery request available on this day'}
+                  : selectedDayVisits.length > 1 ? 'Select a visit to view delivery request' : 'No delivery request available on this day'}
               </span>
               <span>
                 {selectedDeliveryRequestNumber
@@ -1020,9 +1034,45 @@ function App() {
               </span>
               <span>{selectedVisit ? `Upload target: DELIVERY / ${selectedDeliveryRequestId || '--'}` : 'Upload target pending'}</span>
               {selectedDayVisits.length > 1 ? (
-                <span>{`${selectedDayVisits.length} visits found. The first visit will be used for upload.`}</span>
+                <span>{`${selectedDayVisits.length} visits found. Please select one of the visits below.`}</span>
               ) : null}
             </div>
+
+            {selectedDayVisits.length > 1 && (
+              <div className="detail-card">
+                <p className="detail-label">Select Visit ({selectedDayVisits.length} found)</p>
+                <div className="visit-list">
+                  {selectedDayVisits.map((visit) => {
+                    const isSelected = selectedVisit?.visitId === visit.visitId
+                    return (
+                      <div
+                        key={visit.visitId}
+                        className={`visit-card ${isSelected ? 'visit-card--active' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="visit-select-btn"
+                          onClick={() => {
+                            setSelectedVisitId(visit.visitId)
+                            setChallanNumber(visit.challanNumber || '')
+                          }}
+                        >
+                          <strong>Visit ID: {visit.visitId}</strong>
+                          <span>Trip ID: {visit.raw?.tripId ?? 'N/A'} (Trip Status: {visit.raw?.tripStatus ?? 'N/A'})</span>
+                          {visit.deliveryRequestNumber && (
+                            <span>Delivery Request: {visit.deliveryRequestNumber}</span>
+                          )}
+                          {visit.challanNumber && (
+                            <span>Existing Challan: {visit.challanNumber}</span>
+                          )}
+                          <span>Status: {visit.label}</span>
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="capture-section">
               <div className="capture-actions">

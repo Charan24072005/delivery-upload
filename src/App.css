@@ -610,3 +610,54 @@
     max-width: none;
   }
 }
+
+/* Visit Selection Styles */
+.visit-list {
+  display: grid;
+  gap: 12px;
+}
+
+.visit-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid rgba(77, 38, 15, 0.12);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.64);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.visit-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(197, 90, 26, 0.25);
+}
+
+.visit-card--active {
+  border-color: rgba(197, 90, 26, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(197, 90, 26, 0.18);
+  background: linear-gradient(180deg, rgba(240, 143, 54, 0.1), rgba(255, 255, 255, 0.9));
+}
+
+.visit-select-btn {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+}
+
+.visit-select-btn strong {
+  font-size: 1rem;
+  color: var(--text-h);
+}
+
+.visit-select-btn span {
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
